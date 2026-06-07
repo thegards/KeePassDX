@@ -69,7 +69,7 @@ class FieldReferencesEngine(private val mDatabase: DatabaseKDBX) {
 
             try {
                 val nextTextValue = fillReferencesUsingCache(currentEntry, textValue)
-                if (textValue !== textReference) {
+                if (nextTextValue !== textValue && textValue !== textReference) {
                     textValue.clear()
                 }
                 textValue = nextTextValue
@@ -100,14 +100,25 @@ class FieldReferencesEngine(private val mDatabase: DatabaseKDBX) {
                                 .getCustomFieldValue(it.last(), newRecursionLevel)
                             }
                     } else {
-                        with(findReferenceTarget(reference, newRecursionLevel)) {
-                            when (wanted) {
-                                'T' -> entry?.decodeTitleKey(newRecursionLevel)
-                                'U' -> entry?.decodeUsernameKey(newRecursionLevel)
-                                'A' -> entry?.decodeUrlKey(newRecursionLevel)
-                                'P' -> entry?.decodePasswordKey(newRecursionLevel)
-                                'N' -> entry?.decodeNotesKey(newRecursionLevel)
-                                'I' -> entry?.nodeId?.id?.asHexCharArray()
+                        val target = findReferenceTarget(reference, newRecursionLevel)
+                        target.entry?.let { targetEntry ->
+                            when (target.wanted) {
+                                'T' -> targetEntry.getFieldValue(EntryKDBX.STR_TITLE)?.charArrayValue?.let {
+                                    compile(targetEntry, it, newRecursionLevel)
+                                }
+                                'U' -> targetEntry.getFieldValue(EntryKDBX.STR_USERNAME)?.charArrayValue?.let {
+                                    compile(targetEntry, it, newRecursionLevel)
+                                }
+                                'A' -> targetEntry.getFieldValue(EntryKDBX.STR_URL)?.charArrayValue?.let {
+                                    compile(targetEntry, it, newRecursionLevel)
+                                }
+                                'P' -> targetEntry.getFieldValue(EntryKDBX.STR_PASSWORD)?.charArrayValue?.let {
+                                    compile(targetEntry, it, newRecursionLevel)
+                                }
+                                'N' -> targetEntry.getFieldValue(EntryKDBX.STR_NOTES)?.charArrayValue?.let {
+                                    compile(targetEntry, it, newRecursionLevel)
+                                }
+                                'I' -> targetEntry.nodeId?.id?.asHexCharArray()
                                 else -> null
                             }
                         }
@@ -115,13 +126,15 @@ class FieldReferencesEngine(private val mDatabase: DatabaseKDBX) {
                     refsCache[fullReference] = data?.copyOf() ?: CharArray(0)
                     
                     val updatedTextValue = fillReferencesUsingCache(currentEntry, textValue)
-                    if (textValue !== textReference) {
+                    if (updatedTextValue !== textValue && textValue !== textReference) {
                         textValue.clear()
                     }
                     textValue = updatedTextValue
                 }
 
-                offset = end
+                // Reset offset to 0 because resolving a placeholder may introduce
+                // new placeholders anywhere in the text (e.g. nested S: refs).
+                offset = 0
             } catch (e: Exception) {
                 Log.e(TAG, "Error when fill placeholders by reference", e)
                 break
