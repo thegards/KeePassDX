@@ -543,31 +543,36 @@ class DatabaseKDBX : DatabaseVersioned<UUID, UUID, GroupKDBX, EntryKDBX> {
 
     fun getEntryByTitle(title: String, recursionLevel: Int): EntryKDBX? {
         return findEntry { entry ->
-            entry.decodeTitleKey(recursionLevel).contentEquals(title.toCharArray(), true)
+            mFieldReferenceEngine.decodeResolvedField(entry, "Title", recursionLevel)
+                .contentEquals(title.toCharArray(), true)
         }
     }
 
     fun getEntryByUsername(username: String, recursionLevel: Int): EntryKDBX? {
         return findEntry { entry ->
-            entry.decodeUsernameKey(recursionLevel).contentEquals(username.toCharArray(), true)
+            mFieldReferenceEngine.decodeResolvedField(entry, "UserName", recursionLevel)
+                .contentEquals(username.toCharArray(), true)
         }
     }
 
     fun getEntryByURL(url: String, recursionLevel: Int): EntryKDBX? {
         return findEntry { entry ->
-            entry.decodeUrlKey(recursionLevel).contentEquals(url.toCharArray(), true)
+            mFieldReferenceEngine.decodeResolvedField(entry, "URL", recursionLevel)
+                .contentEquals(url.toCharArray(), true)
         }
     }
 
     fun getEntryByPassword(password: CharArray, recursionLevel: Int): EntryKDBX? {
         return findEntry { entry ->
-            entry.decodePasswordKey(recursionLevel).contentEquals(password, true)
+            mFieldReferenceEngine.decodeResolvedField(entry, "Password", recursionLevel)
+                .contentEquals(password, true)
         }
     }
 
     fun getEntryByNotes(notes: String, recursionLevel: Int): EntryKDBX? {
         return findEntry { entry ->
-            entry.decodeNotesKey(recursionLevel).contentEquals(notes.toCharArray(), true)
+            mFieldReferenceEngine.decodeResolvedField(entry, "Notes", recursionLevel)
+                .contentEquals(notes.toCharArray(), true)
         }
     }
 
