@@ -59,7 +59,6 @@ class FieldReferencesEngine(private val mDatabase: DatabaseKDBX) {
     ): CharArray {
         var textValue = textReference
 
-        var offset = 0
         var numberInlineRef = 0
         while ((textValue.contains(STR_SELF_REF_START) || textValue.contains(STR_REF_START))
             && numberInlineRef <= MAX_INLINE_REF
@@ -68,8 +67,14 @@ class FieldReferencesEngine(private val mDatabase: DatabaseKDBX) {
             numberInlineRef++
 
             try {
+                // Replace every already-resolved placeholder from the cache. Cache
+                // passes remove substituted placeholders entirely, so the search
+                // always restarts from the beginning of the (shrinking) text: an
+                // obsolete offset bookkeeping no longer applies.
                 val nextTextValue = fillReferencesUsingCache(currentEntry, textValue)
-                if (textValue !== textReference) {
+                // Only clear a superseded array; a no-op cache pass returns the
+                // SAME array, and zeroing it would destroy the working text.
+                if (nextTextValue !== textValue && textValue !== textReference) {
                     textValue.clear()
                 }
                 textValue = nextTextValue
@@ -77,11 +82,11 @@ class FieldReferencesEngine(private val mDatabase: DatabaseKDBX) {
                 val startingDelimiter = if (selfReference) STR_SELF_REF_START else STR_REF_START
                 val endingDelimiter = STR_REF_END
 
-                val start = textValue.indexOf(startingDelimiter, offset, ignoreCase = true)
+                val start = textValue.indexOf(startingDelimiter, 0, ignoreCase = true)
                 if (start < 0) {
                     break
                 }
-                val end = textValue.indexOf(endingDelimiter, offset, ignoreCase = true)
+                val end = textValue.indexOf(endingDelimiter, start, ignoreCase = true)
                 if (end <= start) {
                     break
                 }
@@ -115,13 +120,11 @@ class FieldReferencesEngine(private val mDatabase: DatabaseKDBX) {
                     refsCache[fullReference] = data?.copyOf() ?: CharArray(0)
                     
                     val updatedTextValue = fillReferencesUsingCache(currentEntry, textValue)
-                    if (textValue !== textReference) {
+                    if (updatedTextValue !== textValue && textValue !== textReference) {
                         textValue.clear()
                     }
                     textValue = updatedTextValue
                 }
-
-                offset = end
             } catch (e: Exception) {
                 Log.e(TAG, "Error when fill placeholders by reference", e)
                 break
