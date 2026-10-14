@@ -510,6 +510,10 @@ open class DatabaseInfo: Database() {
 
     companion object {
         private fun Entry.saveEntryInfo(database: DatabaseInfo, newEntryInfo: EntryInfo) {
+            // Field mutation happens in place on the indexed entry below;
+            // invalidate resolved reference values BEFORE the mutation, the
+            // later Database.updateEntry only replaces the indexed instance.
+            database.clearFieldReferenceCache()
             database.startManageEntry(this)
 
             // Ensure custom fields are populated from custom objects if they are missing

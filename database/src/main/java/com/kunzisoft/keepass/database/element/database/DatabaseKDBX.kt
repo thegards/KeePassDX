@@ -794,6 +794,15 @@ class DatabaseKDBX : DatabaseVersioned<UUID, UUID, GroupKDBX, EntryKDBX> {
         mFieldReferenceEngine.clear()
     }
 
+    /**
+     * The reference cache holds resolved values per reference; any in-place
+     * mutation of stored fields must invalidate it (also cleared by
+     * addEntryTo/updateEntry/removeEntryFrom).
+     */
+    fun clearFieldReferenceCache() {
+        mFieldReferenceEngine.clear()
+    }
+
     fun getTagPoolWithoutHistory(): Tags {
         val activeTags = Tags()
         getGroupIndexes().forEach { group ->
