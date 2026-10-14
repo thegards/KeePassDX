@@ -106,15 +106,7 @@ class FieldReferencesEngine(private val mDatabase: DatabaseKDBX) {
                             }
                     } else {
                         with(findReferenceTarget(reference, newRecursionLevel)) {
-                            when (wanted) {
-                                'T' -> entry?.decodeTitleKey(newRecursionLevel)
-                                'U' -> entry?.decodeUsernameKey(newRecursionLevel)
-                                'A' -> entry?.decodeUrlKey(newRecursionLevel)
-                                'P' -> entry?.decodePasswordKey(newRecursionLevel)
-                                'N' -> entry?.decodeNotesKey(newRecursionLevel)
-                                'I' -> entry?.nodeId?.id?.asHexCharArray()
-                                else -> null
-                            }
+                            resolveTargetWantedField(entry, wanted, newRecursionLevel)
                         }
                     }
                     refsCache[fullReference] = data?.copyOf() ?: CharArray(0)
@@ -150,6 +142,35 @@ class FieldReferencesEngine(private val mDatabase: DatabaseKDBX) {
             }
         }
         return result
+    }
+
+    /**
+     * Resolve the wanted field of the referenced entry in the context of the
+     * referenced entry itself. Target entries are never managed
+     * (startToManageFieldReferences is only called for the viewed entry), so
+     * their decode methods return raw content; placeholders inside it
+     * ({S:...} / {REF:...}) must be resolved against the TARGET, not leaked
+     * raw or re-resolved against the referencing entry.
+     */
+    private fun resolveTargetWantedField(target: EntryKDBX?, wanted: Char, recursionLevel: Int): CharArray? {
+        return target?.let { entry ->
+            when (wanted) {
+                'I' -> entry.nodeId?.id?.asHexCharArray()
+                'T', 'U', 'A', 'P', 'N' -> {
+                    val label = when (wanted) {
+                        'T' -> EntryKDBX.STR_TITLE
+                        'U' -> EntryKDBX.STR_USERNAME
+                        'A' -> EntryKDBX.STR_URL
+                        'P' -> EntryKDBX.STR_PASSWORD
+                        else -> EntryKDBX.STR_NOTES
+                    }
+                    entry.getFieldValue(label)?.charArrayValue?.let {
+                        compile(entry, it, recursionLevel)
+                    }
+                }
+                else -> null
+            }
+        }
     }
 
     private fun findReferenceTarget(reference: String, recursionLevel: Int): TargetResult {
