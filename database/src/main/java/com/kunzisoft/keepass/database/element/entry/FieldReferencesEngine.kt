@@ -48,7 +48,9 @@ class FieldReferencesEngine(private val mDatabase: DatabaseKDBX) {
 
     fun compile(entry: EntryKDBX, textReference: CharArray, recursionLevel: Int): CharArray {
         return if (recursionLevel >= MAX_RECURSION_DEPTH) {
-            CharArray(0)
+            // Resolution cap: leave the raw placeholder visibly unresolved
+            // instead of collapsing the value
+            textReference
         } else {
             fillReferencesPlaceholders(entry, textReference, recursionLevel)
         }
@@ -65,8 +67,9 @@ class FieldReferencesEngine(private val mDatabase: DatabaseKDBX) {
     fun decodeResolvedField(entry: EntryKDBX, label: String, recursionLevel: Int): CharArray {
         val cacheKey = "${entry.nodeId.id}:$label"
         if (!resolving.add(cacheKey)) {
-            // Cycle: this entry field is already being resolved up-chain
-            return charArrayOf()
+            // Cycle: this entry field is already being resolved up-chain;
+            // return the raw stored content so lookups simply don't match
+            return entry.getFieldValue(label)?.charArrayValue ?: charArrayOf()
         }
         try {
             return entry.getFieldValue(label)?.charArrayValue?.let {
@@ -129,15 +132,30 @@ class FieldReferencesEngine(private val mDatabase: DatabaseKDBX) {
                     val newRecursionLevel = recursionLevel + 1
                     val data: CharArray? = if (selfReference) {
                         reference.split(":")
-                            .let { currentEntry
-                                .getCustomFieldValue(it.last(), newRecursionLevel)
+                            .let { label ->
+                                // A self-reference to a nonexistent field is
+                                // unresolvable: fall back to the raw placeholder
+                                if (currentEntry.getFieldValue(label.last()) == null) null
+                                else currentEntry.getCustomFieldValue(label.last(), newRecursionLevel)
                             }
                     } else {
                         with(findReferenceTarget(reference, newRecursionLevel)) {
                             resolveTargetWantedField(entry, wanted, newRecursionLevel)
                         }
                     }
-                    refsCache[fullReference] = data?.copyOf() ?: CharArray(0)
+                    if (data != null) {
+                        refsCache[fullReference] = data.copyOf()
+                    } else {
+                        // Unresolvable (missing target or field): cache the raw
+                        // placeholder so it stays visible instead of collapsing
+                        // into an empty hole in the value
+                        val unresolvedPlaceholder = if (selfReference) {
+                            fullReference.substringBefore("@")
+                        } else {
+                            fullReference
+                        }
+                        refsCache[fullReference] = unresolvedPlaceholder.toCharArray()
+                    }
                     
                     val updatedTextValue = fillReferencesUsingCache(currentEntry, textValue)
                     if (updatedTextValue !== textValue && textValue !== textReference) {
