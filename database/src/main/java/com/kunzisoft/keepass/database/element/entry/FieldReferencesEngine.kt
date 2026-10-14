@@ -36,9 +36,14 @@ class FieldReferencesEngine(private val mDatabase: DatabaseKDBX) {
     // Value : content
     private var refsCache = ConcurrentHashMap<String, CharArray>()
 
+    // Entry ids + field labels currently being resolved, to detect cycles
+    // across the recursive placeholder resolution chains.
+    private val resolving = HashSet<String>()
+
     fun clear() {
         refsCache.values.forEach { it.clear() }
         refsCache.clear()
+        resolving.clear()
     }
 
     fun compile(entry: EntryKDBX, textReference: CharArray, recursionLevel: Int): CharArray {
@@ -46,6 +51,29 @@ class FieldReferencesEngine(private val mDatabase: DatabaseKDBX) {
             CharArray(0)
         } else {
             fillReferencesPlaceholders(entry, textReference, recursionLevel)
+        }
+    }
+
+    /**
+     * Decode the resolved content of an entry field, used by the reference
+     * search lookups. Contrary to the raw field accessors, placeholders
+     * inside the stored field ({S:...} / {REF:...}) are resolved, so entries
+     * whose searching field is itself a reference can still be found.
+     * Cycling resolution chains (A searches B while B searches A) are cut off
+     * and yield no match.
+     */
+    fun decodeResolvedField(entry: EntryKDBX, label: String, recursionLevel: Int): CharArray {
+        val cacheKey = "${entry.nodeId.id}:$label"
+        if (!resolving.add(cacheKey)) {
+            // Cycle: this entry field is already being resolved up-chain
+            return charArrayOf()
+        }
+        try {
+            return entry.getFieldValue(label)?.charArrayValue?.let {
+                compile(entry, it, recursionLevel)
+            } ?: charArrayOf()
+        } finally {
+            resolving.remove(cacheKey)
         }
     }
 
