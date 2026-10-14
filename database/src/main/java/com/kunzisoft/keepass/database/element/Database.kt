@@ -1054,6 +1054,15 @@ open class Database {
         }
     }
 
+    /**
+     * Invalidate the field-reference cache: mandatory whenever a stored field
+     * is mutated without a structural update (DatabaseKDBX.updateEntry also
+     * clears the cache).
+     */
+    fun clearFieldReferenceCache() {
+        mDatabaseKDBX?.clearFieldReferenceCache()
+    }
+
     fun removeEntryFrom(entry: Entry, parent: Group) {
         entry.entryKDB?.let { entryKDB ->
             mDatabaseKDB?.removeEntryFrom(entryKDB, parent.groupKDB)
